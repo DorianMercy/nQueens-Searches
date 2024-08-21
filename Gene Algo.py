@@ -1,67 +1,88 @@
+import Board
 import random
+import copy
 
 class GeneticAlgorithmNQueens:
-    def __init__(self, num_queens, population_size, mutation_rate, max_generations):
+    def __init__(self, num_queens, population_size, mutation_rate, patience=50):
         self.num_queens = num_queens
         self.population_size = population_size
         self.mutation_rate = mutation_rate
-        self.max_generations = max_generations
-        self.population = [self.random_individual() for _ in range(population_size)]
+        self.patience = patience  # Number of generations to wait for improvement
 
-    def random_individual(self):
-        return [random.randint(0, self.num_queens - 1) for _ in range(self.num_queens)]
+    def initialize_population(self):
+        return [Board.NQueens(self.num_queens) for _ in range(self.population_size)]
 
-    def fitness(self, individual):
-        conflicts = 0
-        for i in range(self.num_queens):
-            for j in range(i + 1, self.num_queens):
-                if individual[i] == individual[j] or abs(individual[i] - individual[j]) == abs(i - j):
-                    conflicts += 1
-        return -conflicts  # Minimize conflicts, so we return negative conflicts
+    def fitness(self, state):
+        return state.fitness_function()
 
-    def select(self):
-        # Tournament selection
-        tournament_size = 5
-        tournament = random.sample(self.population, tournament_size)
-        return max(tournament, key=self.fitness)
+    def select_parents(self, population):
+        """Roulette Wheel Selection"""
+        fitnesses = [1 / (self.fitness(state) + 1) for state in population]  # Inverted fitness for selection
+        total_fitness = sum(fitnesses)
+        selection_probs = [fitness / total_fitness for fitness in fitnesses]
+        parent1 = random.choices(population, weights=selection_probs, k=1)[0]
+        parent2 = random.choices(population, weights=selection_probs, k=1)[0]
+        return parent1, parent2
 
-    def crossover(self(parent1, parent2):
-        point = random.randint(0, self.num_queens - 1)
-        return parent1[:point] + parent2[point:]
+    def crossover(self, parent1, parent2):
+        """Single-point crossover"""
+        crossover_point = random.randint(0, self.num_queens - 1)
+        child_state = parent1.state[:crossover_point] + parent2.state[crossover_point:]
+        child = Board.NQueens(self.num_queens)
+        child.set_state(child_state)
+        return child
 
     def mutate(self, individual):
+        """Randomly mutate a single gene"""
         if random.random() < self.mutation_rate:
-            idx = random.randint(0, self.num_queens - 1)
-            individual[idx] = random.randint(0, self.num_queens - 1)
-        return individual
+            col = random.randint(0, self.num_queens - 1)
+            row = random.randint(0, self.num_queens - 1)
+            individual.state[col] = row
 
-    def run(self):
-        for generation in range(self.max_generations):
+    def run(self, max_generations):
+        population = self.initialize_population()
+        best_fitness = float('inf')
+        best_individual = None
+        no_improvement_generations = 0
+
+        for generation in range(max_generations):
+            population.sort(key=lambda x: self.fitness(x))
+            current_best_individual = population[0]
+            current_best_fitness = self.fitness(current_best_individual)
+
+            print(f"Generation {generation + 1}: Best Fitness = {current_best_fitness}")
+
+            if current_best_fitness == 0:
+                print("Solution Found:")
+                current_best_individual.print_board()
+                return current_best_individual
+
+            if current_best_fitness < best_fitness:
+                best_fitness = current_best_fitness
+                best_individual = copy.deepcopy(current_best_individual)
+                no_improvement_generations = 0
+            else:
+                no_improvement_generations += 1
+
+            # Check if stuck in local optima
+            if no_improvement_generations >= self.patience:
+                print(f"Stuck in local optima after {generation + 1} generations.")
+                print("Best solution found so far:")
+                best_individual.print_board()
+                return best_individual
+
             new_population = []
             while len(new_population) < self.population_size:
-                parent1 = self.select()
-                parent2 = self.select()
-                offspring = self.crossover(parent1, parent2)
-                offspring = self.mutate(offspring)
-                new_population.append(offspring)
+                parent1, parent2 = self.select_parents(population)
+                child = self.crossover(parent1, parent2)
+                self.mutate(child)
+                new_population.append(child)
 
-            self.population = new_population
-            best_individual = max(self.population, key=self.fitness)
-            best_fitness = self.fitness(best_individual)
-            
-            print(f"Generation {generation + 1}: Best Fitness = {-best_fitness}")
+            population = new_population
 
-            if best_fitness == 0:
-                print("Solution Found:")
-                print(best_individual)
-                break
+        print("Reached maximum generations without finding a solution.")
+        return None
 
-# Parameters
-num_queens = 8
-population_size = 100
-mutation_rate = 0.05
-max_generations = 1000
-
-# Run Genetic Algorithm
-ga = GeneticAlgorithmNQueens(num_queens, population_size, mutation_rate, max_generations)
-ga.run()
+# Example Usage:
+genetic_solver = GeneticAlgorithmNQueens(num_queens=10, population_size=100, mutation_rate=0.1)
+genetic_solver.run(max_generations=1000)
