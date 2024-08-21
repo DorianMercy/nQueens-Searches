@@ -1,7 +1,7 @@
 import math
 import random
 import copy
-import board  # Import your NQueens class
+import board
 
 def agent(iterations, initial_temperature, cooling_rate):
     current_board = board
